@@ -13,13 +13,13 @@ package model
 // }
 
 type User struct {
-	Id       int64
-	Email    string
-	Password string
-	Name     string
-	Age      int64
-	Address  string
-	Sid      []int64
+	Id       int64 		`json:id`
+	Email    string		`json:email`
+	Password string		`json:password`
+	Name     string		`json:name`
+	Age      string		`json:age`
+	Address  string		`json:address`
+	Sid      []int64	`json:sid`
 }
 type GetUser struct {
 	Id      int64

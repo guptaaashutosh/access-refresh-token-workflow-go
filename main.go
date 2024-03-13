@@ -11,6 +11,8 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+
+	"github.com/gin-contrib/pprof"
 )
 
 // func init() {
@@ -41,6 +43,13 @@ func main() {
 
 	r := setupRouter()
 
-	r.Run() 
+	//Register the standard HandlerFuncs from the net/http/pprof package with the provided gin.Engine.
+	pprof.Register(r)
+	// pprof.Register(router, &pprof.Options{
+	// 	// default is "debug/pprof"
+	// 	RoutePrefix: "debug/pprof",
+	// })
+
+	r.Run()
 
 }

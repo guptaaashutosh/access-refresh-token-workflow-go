@@ -10,6 +10,8 @@ import (
 
 func IndexRoute(route *gin.Engine) {
 
+	// gRoute := route.Group("/testGroupPath")
+
 	route.GET("/", controller.Get)
 
 	route.POST("/create", controller.Create)

@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	// "log"
 	"net/http"
 	"strconv"
 
+	"learn/httpserver/constants"
 	"learn/httpserver/model"
 	"learn/httpserver/repo"
 	"learn/httpserver/setup"
+	validation "learn/httpserver/validations"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -101,6 +103,8 @@ func Get(c *gin.Context) {
 	})
 }
 
+
+
 // ------------- put all data in redis -------------
 func PutAllDataInRedis(redisClient *redis.Client) {
 	DB := setup.ConnectDB()
@@ -125,69 +129,93 @@ func PutAllDataInRedis(redisClient *redis.Client) {
 
 // create - applying transaction
 func Create(c *gin.Context) {
-	DB := setup.ConnectDB()
-	repos := repo.UserRepo(DB)
+
+	//vaidate data 
+	var requestParam = map[string]string{
+		constants.IdKey:  "number|len:2",
+		constants.EmailKey: "string",
+		constants.PasswordKey : "string|minLen:4|maxLen:8",
+		constants.NameKey : "string",
+		constants.AgeKey : "string",
+		constants.AddressKey : "string",
+		constants.ServiceIdKey : "slice|maxLen:20",
+	}
+
+	var userReq model.User
+
+	err, invalidParameters, invalidParamsErrMsg := validation.ValidateParameters(c.Request, &userReq, &requestParam, nil, nil, nil, nil)
+
+	if err != nil || invalidParameters !=nil || invalidParamsErrMsg != nil {
+		fmt.Print("error : ",err)
+		return
+	}
+	
+
+	// DB := setup.ConnectDB()
+	// repos := repo.UserRepo(DB)
 	//check data
-	var user model.User
-	err := c.BindJSON(&user)
-	if err != nil {
-		panic(err)
-	}
+	// var user model.User
+	// err := c.BindJSON(&user)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	//redis-client
-	ctxRedisClient, redisConnected := c.Get("redis-client")
-	redisClient := ctxRedisClient.(*redis.Client)
+	// //redis-client
+	// ctxRedisClient, redisConnected := c.Get("redis-client")
+	// redisClient := ctxRedisClient.(*redis.Client)
 
-	//apply transaction
-	tx, err := DB.Begin(c)
-	if err != nil {
-		// return err
-		log.Fatal("Error in transaction begin : ", err)
-		return
-	}
+	// //apply transaction
+	// tx, err := DB.Begin(c)
+	// if err != nil {
+	// 	// return err
+	// 	log.Fatal("Error in transaction begin : ", err)
+	// 	return
+	// }
 
-	//insert into employee table
-	err = repos.CreateEmployee(user, tx)
-	if err != nil {
-		tx.Rollback(c)
-		c.JSON(500, gin.H{
-			"isCreated": false,
-		})
-		return
-	}
-	//insert into employee-service-pair
-	err = repos.CreateEmployeeServicePair(user.Id, user.Sid, tx)
-	if err != nil {
-		tx.Rollback(c)
-		c.JSON(500, gin.H{
-			"isCreated": false,
-		})
-		return
-	}
+	// //insert into employee table
+	// err = repos.CreateEmployee(user, tx)
+	// if err != nil {
+	// 	tx.Rollback(c)
+	// 	c.JSON(500, gin.H{
+	// 		"isCreated": false,
+	// 	})
+	// 	return
+	// }
+	// //insert into employee-service-pair
+	// err = repos.CreateEmployeeServicePair(user.Id, user.Sid, tx)
+	// if err != nil {
+	// 	tx.Rollback(c)
+	// 	c.JSON(500, gin.H{
+	// 		"isCreated": false,
+	// 	})
+	// 	return
+	// }
 
-	err = tx.Commit(c)
+	// err = tx.Commit(c)
 
-	if err != nil {
-		log.Fatal(err)
-		c.JSON(500, gin.H{
-			"isCreated": false,
-			"message ":  "transaction failed",
-		})
-		return
-	}
+	// if err != nil {
+	// 	log.Fatal(err)
+	// 	c.JSON(500, gin.H{
+	// 		"isCreated": false,
+	// 		"message ":  "transaction failed",
+	// 	})
+	// 	return
+	// }
 
-	fmt.Println("-- transaction committed --")
+	// fmt.Println("-- transaction committed --")
 
-	//if redis connected then insert only
-	if redisConnected {
-		redisKey := strconv.Itoa(int(user.Id))
-		createErr := redisClient.HSet(c, "user:"+redisKey, "Id", user.Id, "Email", user.Email, "Name", user.Name, "Age", user.Age, "Address", user.Address).Err()
-		if createErr != nil {
-			fmt.Printf("HSet create Error: %s", err)
-		}
-	}
+	// //if redis connected then insert only
+	// if redisConnected {
+	// 	redisKey := strconv.Itoa(int(user.Id))
+	// 	createErr := redisClient.HSet(c, "user:"+redisKey, "Id", user.Id, "Email", user.Email, "Name", user.Name, "Age", user.Age, "Address", user.Address).Err()
+	// 	if createErr != nil {
+	// 		fmt.Printf("HSet create Error: %s", err)
+	// 	}
+	// }
 	c.JSON(http.StatusOK, gin.H{
 		"isCreated": true,
+		"vaid-data": userReq,
+
 	})
 }
 
