@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"learn/httpserver/model"
+	"learn/httpserver/utils"
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -22,6 +24,55 @@ type Repositories interface {
 	UpdateData(model.User, string) (bool, error)
 	CheckUserExist(model.Login) (string, error)
 	CreateNewService(model.Service) (bool, error)
+	UserLogin(model.Login) (model.User, string, error)
+	RefreshToken(string) (string, error)
+}
+
+// user login
+func (u User) UserLogin(user model.Login) (model.User, string, error) {
+	var userData model.User
+	row := u.db.QueryRow(context.Background(), "SELECT id,email,name,age,address FROM employee WHERE email=$1 AND password=$2", user.Email, user.Password)
+	err := row.Scan(&userData.Id, &userData.Email, &userData.Name, &userData.Age, &userData.Address)
+	if err != nil || err == sql.ErrNoRows {
+		fmt.Println(err)
+		return model.User{}, "", err
+	}
+	// generate refresh token and store
+	refreshToken, tokenError := utils.GenerateJwtToken(userData.Email, time.Now().Add(time.Second*120))
+	if tokenError != nil {
+		return model.User{}, "", tokenError
+	}
+	//store refresh token in db
+	_, err = u.db.Exec(context.Background(), "INSERT INTO refreshtokens(email,refresh_token)values($1,$2)", userData.Email, refreshToken)
+	if err != nil {
+		log.Fatal(err)
+		return model.User{}, "", err
+	}
+	return userData,  refreshToken, nil
+}
+
+
+// check refresh token and generate new access token with refresh token
+func (u User) RefreshToken(refreshToken string) (string, error) {
+	var email string
+	row := u.db.QueryRow(context.Background(), `SELECT employee.email FROM employee LEFT JOIN refreshtokens on employee.email = refreshtokens.email WHERE refreshtokens.refresh_token=$1`, refreshToken)
+	err := row.Scan(&email)
+	if err != nil || err == sql.ErrNoRows {
+		fmt.Println(err)
+		return "", err
+	}
+	// generate new refresh token and store
+	newRefreshToken, tokenError := utils.GenerateJwtToken(email, time.Now().Add(time.Second*120))
+	if tokenError != nil {
+		return "", tokenError
+	}
+	//store refresh token in db
+	_, err = u.db.Exec(context.Background(), "UPDATE refreshtokens SET refresh_token=$1 WHERE email=$2", newRefreshToken, email)
+	if err != nil {
+		log.Fatal(err)
+		return "", err
+	}
+	return newRefreshToken, nil
 }
 
 // get all data
@@ -88,14 +139,11 @@ func (u User) GetData() ([]model.GetUser, error) {
 	return users, nil
 }
 
-// using transaction
 func (u User) CreateEmployee(newUserData model.User, tx pgx.Tx) error {
-	//call dal to get newUserData
 	fmt.Println(newUserData)
 
 	_, err := tx.Exec(context.Background(), "INSERT INTO employee(id,email,password,name,age,address)values($1,$2,$3,$4,$5,$6)", newUserData.Id, newUserData.Email, newUserData.Password, newUserData.Name, newUserData.Age, newUserData.Address)
 
-	// createdTag, err := u.db.Exec(context.Background(), "INSERT INTO employee(id,email,password,name,age,address)values($1,$2,$3,$4,$5,$6)", newUserData.Id, newUserData.Email, newUserData.Password, newUserData.Name, newUserData.Age, newUserData.Address)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -123,11 +171,8 @@ func generateEmployeeServicePairParametersToInsert(UserId int64, servicesId []in
 
 // CreateEmployeeServicePair
 func (u User) CreateEmployeeServicePair(UserId int64, ServicesId []int64, tx pgx.Tx) error {
-	//call dal to get newUserData
-	fmt.Println(UserId, ServicesId)
 
 	strParametersNames, parameterValues := generateEmployeeServicePairParametersToInsert(UserId, ServicesId)
-	//insert into employee-service-pair table
 	_, err := tx.Exec(context.Background(), "INSERT INTO employeeservicepair(userid,serviceid)values "+strParametersNames, parameterValues...)
 
 	if err != nil {
@@ -138,9 +183,7 @@ func (u User) CreateEmployeeServicePair(UserId int64, ServicesId []int64, tx pgx
 	return nil
 }
 
-// CreateNewService
 func (u User) CreateNewService(newServiceData model.Service) (bool, error) {
-
 	createdTag, err := u.db.Exec(context.Background(), "INSERT INTO services(sid,service)values($1,$2)", newServiceData.Sid, newServiceData.Service)
 	if err != nil {
 		log.Fatal(err)
@@ -154,9 +197,8 @@ func (u User) CreateNewService(newServiceData model.Service) (bool, error) {
 
 }
 
-// DeleteData
-func (u User) DeleteData(id string) (bool, error) {
-	deletedTag, err := u.db.Exec(context.Background(), "DELETE FROM employee WHERE id=$1", id)
+func (u User) DeleteData(email string) (bool, error) {
+	deletedTag, err := u.db.Exec(context.Background(), `DELETE FROM employee WHERE email=$1`, email)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -169,7 +211,6 @@ func (u User) DeleteData(id string) (bool, error) {
 
 }
 
-// UpdateData
 func (u User) UpdateData(updateData model.User, id string) (bool, error) {
 	updatedTag, err := u.db.Exec(context.Background(), "UPDATE employee SET name=$2,age=$3,address=$4,email=$5,sid=$6 WHERE id=$1", id, updateData.Name, updateData.Age, updateData.Address, updateData.Email, updateData.Sid)
 	if err != nil {
@@ -194,28 +235,6 @@ func (u User) CheckUserExist(user model.Login) (string, error) {
 		return "", err
 	}
 
-	// //generate token
-	// loggedInToken, tokenError := utils.GenerateToken(strconv.FormatInt(user.Id,10))
-	// if tokenError != nil {
-	// 	return "",tokenError
-	// }
-
 	return "success", nil
 
 }
-
-// func (u User) CreateData(newUserData model.User) (bool, error) {
-// 	//call dal to get newUserData
-// 	fmt.Println(newUserData)
-// 	createdTag, err := u.db.Exec(context.Background(), "INSERT INTO employee(id,email,password,name,age,address)values($1,$2,$3,$4,$5,$6)", newUserData.Id, newUserData.Email, newUserData.Password, newUserData.Name, newUserData.Age, newUserData.Address)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	if createdTag.Insert() {
-// 		return true, nil
-// 	}
-
-// 	return false, nil
-
-// }

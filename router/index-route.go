@@ -2,7 +2,7 @@ package router
 
 import (
 	"learn/httpserver/controller"
-	"learn/httpserver/middleware"
+	"learn/httpserver/utils"
 
 	"github.com/gin-gonic/gin"
 	// "learn/httpserver/controller"
@@ -22,14 +22,20 @@ func IndexRoute(route *gin.Engine) {
 
 	route.POST("/login", controller.Login)
 
-	route.GET("/logout", controller.Logout)
+	// get refresh token and generate new access token
+	route.POST("/refresh-token", utils.VerifyToken(1), controller.RefreshToken)
 
-	//to authenticate with jwt
-	route.GET("/auth", middleware.AuthenticateUser, middleware.ValidatePermission, controller.AuthData)
+	// 0 for access token, 1 for refresh token
+	route.GET("/employee", utils.VerifyToken(0), controller.GetEmployeeData)
 
-	route.GET("/session-test", middleware.AuthenticateUser, middleware.ValidatePermission, controller.SessionTest)
+	route.POST("/logout", controller.Logout)
 
-	//service 
+	// //to authenticate with jwt
+	// route.GET("/auth", middleware.AuthenticateUser, middleware.ValidatePermission, controller.AuthData)
+
+	// route.GET("/session-test", middleware.AuthenticateUser, middleware.ValidatePermission, controller.SessionTest)
+
+	//service
 	route.POST("/new-service", controller.AssignNewServiceToUser)
 
 }

@@ -5,7 +5,8 @@ import (
 	"learn/httpserver/response"
 	"net/http"
 
-	"github.com/gookit/validate"
+	// "github.com/gookit/validate"
+	"github.com/guptaaashutosh/go_validate"
 )
 
 // ValidateParameters validates queryParameters, requestParameters and urlParameters

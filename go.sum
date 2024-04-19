@@ -53,8 +53,12 @@ github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/
 github.com/gookit/color v1.5.4 h1:FZmqs7XOyGgCAxmWyPslpiok1k05wmY3SJTytgvYFs0=
 github.com/gookit/filter v1.2.0 h1:r7E01dHVkysb5WgzooiGsfblHGShEZCeGcyYM+5IpYU=
 github.com/gookit/filter v1.2.0/go.mod h1:bXs9RcB4Blxwny970opiwABeIEqQ/gzOMmHBhKwBdms=
+github.com/gookit/filter v1.2.1 h1:37XivkBm2E5qe1KaGdJ5ZfF5l9NYdGWfLEeQadJD8O4=
+github.com/gookit/filter v1.2.1/go.mod h1:rxynQFr793x+XDwnRmJFEb53zDw0Zqx3OD7TXWoR9mQ=
 github.com/gookit/goutil v0.6.12 h1:73vPUcTtVGXbhSzBOFcnSB1aJl7Jq9np3RAE50yIDZc=
 github.com/gookit/goutil v0.6.12/go.mod h1:g6krlFib8xSe3G1h02IETowOtrUGpAmetT8IevDpvpM=
+github.com/gookit/goutil v0.6.15 h1:mMQ0ElojNZoyPD0eVROk5QXJPh2uKR4g06slgPDF5Jo=
+github.com/gookit/goutil v0.6.15/go.mod h1:qdKdYEHQdEtyH+4fNdQNZfJHhI0jUZzHxQVAV3DaMDY=
 github.com/gookit/validate v1.5.1 h1:rPp64QZQJM+fysGFAhKpvekQAav4Ok6sjfTs9ZtxcpA=
 github.com/gookit/validate v1.5.1/go.mod h1:SskOHUQokzMNt6T3r7N+N/4me/6fxDx+tmoXf/3ZQog=
 github.com/gorilla/context v1.1.1 h1:AWwleXJkX/nhcU9bZSnZoi3h/qGYqQAGhq6zZe/aQW8=
@@ -63,6 +67,8 @@ github.com/gorilla/securecookie v1.1.1 h1:miw7JPhV+b/lAHSXz4qd/nN9jRiAFV5FwjeKyC
 github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+HVt/4epWDjd4=
 github.com/gorilla/sessions v1.2.1 h1:DHd3rPN5lE3Ts3D8rKkQ8x/0kqfeNmBAaiSi+o7FsgI=
 github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=
+github.com/guptaaashutosh/go_validate v1.0.6 h1:oAAv8xOrhOc0ABdEOYo7E+tjEoFZ1M/7fRUO4JPAjto=
+github.com/guptaaashutosh/go_validate v1.0.6/go.mod h1:1qjMAoxOBPKmkphjrLhir7QEOZm2pvcfngHUHN2kHGQ=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a h1:bbPeKD0xmW/Y25WS6cokEszi5g+S0QxI/d45PkRi7Nk=
