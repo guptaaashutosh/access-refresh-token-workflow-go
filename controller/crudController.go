@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -17,6 +18,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/ory/hydra-client-go/client/admin"
+	"github.com/ory/hydra-client-go/models"
+	"golang.org/x/oauth2"
 )
 
 func GetAllDataFromRedis(c *gin.Context) ([]model.User, error) {
@@ -306,8 +311,353 @@ func RefreshToken(c *gin.Context) {
 	})
 }
 
+// hydra public port call controller
+// HydraPublicPortCall
+func HydraPublicPortCall(c *gin.Context) {
+	clientId := "democlient" // Replace with your client ID
+	redirectURI := "http://localhost:3000/callbacks"
+	scope := "offline"
+	state := "2n4tr5iorREJY4849479z0JucIo4guU7rx1qZLT4mTc=" // Replace with a secure random state
+
+	oauthUrl := "http://localhost:4444/oauth2/auth"
+	params := url.Values{
+		"client_id":     {clientId},
+		"client_secret": {"demosecret"},
+		"prompt":        {"consent"},
+		"response_type": {"code"},
+		"redirect_uri":  {redirectURI},
+		"scope":         {scope},
+		"state":         {state},
+	}
+
+	encodedUrl := oauthUrl + "?" + params.Encode()
+
+	fmt.Println("encodedUrl: ", encodedUrl)
+
+	// Redirect user to Hydra authorization endpoint
+	c.Redirect(http.StatusFound, encodedUrl)
+}
+
+// AuthGetLogin
+func (h Handler) AuthGetLogin(c *gin.Context) {
+
+	login_challenge := c.Query("login_challenge")
+	if login_challenge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "login_challenge not found",
+		})
+		return
+	}
+
+	fmt.Println("login_challenge: ", login_challenge)
+
+	ctx := c.Request.Context()
+
+	// Using Hydra Admin to get the login challenge info
+	loginGetParams := admin.NewGetLoginRequestParams()
+	loginGetParams.WithContext(ctx)
+	loginGetParams.SetLoginChallenge(login_challenge)
+
+	// get login request from hydra
+	respLoginGet, err := h.HydraAdmin.GetLoginRequest(loginGetParams)
+
+	if err != nil {
+		//redirect to login page with error
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "error in getting login request",
+		})
+		return
+	}
+
+	fmt.Println("respLoginGet login: ", respLoginGet)
+
+	skip := false
+	if respLoginGet.GetPayload().Skip != nil {
+		skip = *respLoginGet.GetPayload().Skip
+	}
+
+	// If hydra was already able to authenticate the user, skip will be true and we do not need to re-authenticate
+	// the user.
+	if skip {
+		// Using Hydra Admin to accept login request!
+		loginAcceptParams := admin.NewAcceptLoginRequestParams()
+		loginAcceptParams.WithContext(ctx)
+		loginAcceptParams.SetLoginChallenge(login_challenge)
+		loginAcceptParams.SetBody(&models.AcceptLoginRequest{
+			Subject: respLoginGet.GetPayload().Subject,
+		})
+
+		// accept login request
+		respLoginAccept, err := h.HydraAdmin.AcceptLoginRequest(loginAcceptParams)
+		if err != nil {
+			//redirect to login page with error
+			c.JSON(http.StatusBadRequest, gin.H{
+				//Redirect to login page with error
+				"message": "error in accepting login request",
+			})
+			return
+		}
+
+		// Redirect user to hydra consent endpoint
+		c.Redirect(http.StatusFound, *respLoginAccept.Payload.RedirectTo)
+		return
+	}
+
+	redirectURL := "http://localhost:3000/login" + "?login_challenge=" + login_challenge
+	c.Redirect(http.StatusFound, redirectURL)
+}
+
+// AuthPostLogin
+func (h Handler) AuthPostLogin(c *gin.Context) {
+
+	// login_challenge := c.Query("login_challenge")
+	login_challenge := c.PostForm("login_challenge")
+	if login_challenge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "login_challenge not found",
+		})
+		return
+	}
+
+	fmt.Println("login_challenge post login : ", login_challenge)
+
+	ctx := c.Request.Context()
+
+	// Using Hydra Admin to get the login challenge info
+	loginGetParams := admin.NewGetLoginRequestParams()
+	loginGetParams.WithContext(ctx)
+	loginGetParams.SetLoginChallenge(login_challenge)
+
+	// get login request from hydra
+	respLoginGet, err := h.HydraAdmin.GetLoginRequest(loginGetParams)
+
+	if err != nil {
+		//redirect to login page with error
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "error in getting login request",
+		})
+		return
+	}
+
+	fmt.Println("respLoginGet post login: ", respLoginGet)
+
+	subject := "democlient"
+
+	loginAcceptParams := admin.NewAcceptLoginRequestParams()
+	loginAcceptParams.WithContext(ctx)
+	loginAcceptParams.SetLoginChallenge(login_challenge)
+	loginAcceptParams.SetBody(&models.AcceptLoginRequest{
+		Subject:  &subject,
+		Remember: true,
+	})
+
+	respLoginAccept, err := h.HydraAdmin.AcceptLoginRequest(loginAcceptParams)
+	if err != nil {
+		//redirect to login page with error
+		c.JSON(http.StatusBadRequest, gin.H{
+			//Redirect to login page with error
+			"message": "error in accepting login request :" + err.Error(),
+		})
+		return
+	}
+
+	// Redirect user to hydra consent endpoint
+	c.Redirect(http.StatusFound, *respLoginAccept.GetPayload().RedirectTo)
+}
+
+// AuthGetConsent
+func (h Handler) AuthGetConsent(c *gin.Context) {
+
+	consent_challenge := c.Query("consent_challenge")
+	if consent_challenge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "consent_challenge not found",
+		})
+		return
+	}
+
+	// fmt.Println("consent_challenge: ", consent_challenge)
+
+	ctx := c.Request.Context()
+
+	// Using Hydra Admin to get the consent challenge info
+	consentGetParams := admin.NewGetConsentRequestParams()
+	consentGetParams.SetContext(c)
+	consentGetParams.SetConsentChallenge(consent_challenge)
+
+	consentGetResp, err := h.HydraAdmin.GetConsentRequest(consentGetParams)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "error in getting consent request",
+		})
+		return
+	}
+
+	// If a user has granted this application the requested scope, hydra will tell us to not show the UI.
+	if consentGetResp.GetPayload().Skip {
+		// Now it's time to grant the consent request.
+		// You could also deny the request if something went terribly wrong
+		consentAcceptBody := &models.AcceptConsentRequest{
+			GrantAccessTokenAudience: consentGetResp.GetPayload().RequestedAccessTokenAudience,
+			GrantScope:               consentGetResp.GetPayload().RequestedScope,
+		}
+
+		// Using Hydra Admin to accept consent request
+		consentAcceptParams := admin.NewAcceptConsentRequestParams()
+		consentAcceptParams.WithContext(ctx)
+		consentAcceptParams.SetConsentChallenge(consent_challenge)
+		consentAcceptParams.WithBody(consentAcceptBody)
+
+		consentAcceptResp, err := h.HydraAdmin.AcceptConsentRequest(consentAcceptParams)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "error in accepting consent request",
+			})
+			return
+		}
+
+		c.Redirect(http.StatusFound, *consentAcceptResp.GetPayload().RedirectTo)
+		return
+	}
+
+	consentMessage := fmt.Sprintf("Application %s wants access resources on your behalf and to:",
+		consentGetResp.GetPayload().Client.ClientName,
+	)
+
+	fmt.Println("consentMessage: ", consentMessage)
+
+	// Redirect user to hydra consent endpoint
+	redirectURL := "http://localhost:3000/consent" + "?consent_challenge=" + consent_challenge
+	c.Redirect(http.StatusFound, redirectURL)
+}
+
+// AuthPostConsent
+func (h Handler) AuthPostConsent(c *gin.Context) {
+
+	consent_challenge := c.PostForm("consent_challenge")
+	if consent_challenge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "consent_challenge not found",
+		})
+		return
+	}
+
+	fmt.Println("consent_challenge post consent: ", consent_challenge)
+
+	ctx := c.Request.Context()
+
+	// Using Hydra Admin to get the consent challenge info
+	consentGetParams := admin.NewGetConsentRequestParams()
+	consentGetParams.WithContext(ctx)
+	consentGetParams.SetConsentChallenge(consent_challenge)
+
+	consentGetResp, err := h.HydraAdmin.GetConsentRequest(consentGetParams)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "error in getting consent request",
+		})
+		return
+	}
+
+	// If a user has granted this application the requested scope, hydra will tell us to not show the UI.
+	// if consentGetResp.GetPayload().Skip {
+	// Now it's time to grant the consent request.
+	// You could also deny the request if something went terribly wrong
+	consentAcceptBody := &models.AcceptConsentRequest{
+		GrantAccessTokenAudience: consentGetResp.GetPayload().RequestedAccessTokenAudience,
+		GrantScope:               consentGetResp.GetPayload().RequestedScope,
+	}
+
+	// Using Hydra Admin to accept consent request
+	consentAcceptParams := admin.NewAcceptConsentRequestParams()
+	consentAcceptParams.WithContext(ctx)
+	consentAcceptParams.SetConsentChallenge(consent_challenge)
+	consentAcceptParams.WithBody(consentAcceptBody)
+
+	consentAcceptResp, err := h.HydraAdmin.AcceptConsentRequest(consentAcceptParams)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "error in accepting consent request",
+		})
+		return
+	}
+
+	fmt.Println("consentAcceptResp: ", consentAcceptResp)
+
+	c.Redirect(http.StatusFound, *consentAcceptResp.GetPayload().RedirectTo)
+	return
+}
+
+
+// ----------------- token endpoint ----------------------------
+// Endpoint is OAuth 2.0 endpoint.
+var Endpoint = oauth2.Endpoint{
+	AuthURL:  "http://localhost:4444/oauth2/auth",
+	TokenURL: "http://localhost:4444/oauth2/token",
+}
+
+// Scopes: OAuth 2.0 scopes provide a way to limit the amount of access that is granted to an access token.
+var OAuthConf = &oauth2.Config{
+	RedirectURL:  "http://localhost:3000/callbacks",
+	ClientID:     "democlient", 
+	ClientSecret: "demosecret", 
+	Scopes:   []string{"users.write", "users.read", "users.edit", "users.delete", "offline"},
+	Endpoint: Endpoint,
+}
+
+// HydraTokenEndpoint
+func (h Handler) HydraTokenEndpoint(c *gin.Context) {
+	code := c.PostForm("code")
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "authorization code not found",
+		})
+		return
+	}
+
+	tokenResp, err := OAuthConf.Exchange(context.Background(), code)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "error in sending request to token endpoint",
+		})
+		return
+	}
+
+	fmt.Println("tokenResp from token endpoint: ", tokenResp)
+
+
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"message": "successfully login",
+	// 	"token":   tokenResp,
+	// })
+
+	redirectURL := "http://localhost:3000/callbacks" + "?access_token=" + tokenResp.AccessToken + "&refresh_token=" + tokenResp.RefreshToken + "&token_type=" + tokenResp.TokenType + "&expires_in=" + strconv.Itoa(int(tokenResp.Expiry.Sub(time.Now()).Seconds()))
+	c.Redirect(http.StatusFound, redirectURL)
+	
+}
+// ----------------------- token endpoint ----------------------------
+
+
+
+
 // Login
 func Login(c *gin.Context) {
+
+	login_challenge := c.Query("login_challenge")
+	if login_challenge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "login_challenge not found",
+		})
+		return
+	}
+
+	fmt.Println("login_challenge: ", login_challenge)
+
+	// Using Hydra Admin to get the login challenge info
+	loginGetParams := admin.NewGetLoginRequestParams()
+	loginGetParams.SetContext(c)
+	loginGetParams.SetLoginChallenge(login_challenge)
 
 	var loginUserData model.Login
 	err := c.BindJSON(&loginUserData)
