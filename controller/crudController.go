@@ -336,6 +336,12 @@ func HydraPublicPortCall(c *gin.Context) {
 
 	// Redirect user to Hydra authorization endpoint
 	c.Redirect(http.StatusFound, encodedUrl)
+
+	//for api test purpose
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"message": "successfully redirected to hydra authorization endpoint",
+	// 	"encodedUrl": encodedUrl,
+	// })
 }
 
 // AuthGetLogin
@@ -463,6 +469,12 @@ func (h Handler) AuthPostLogin(c *gin.Context) {
 
 	// Redirect user to hydra consent endpoint
 	c.Redirect(http.StatusFound, *respLoginAccept.GetPayload().RedirectTo)
+
+	//for api test purpose
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"message": "successfully login",
+	// 	"respLoginAccept": respLoginAccept,
+	// })
 }
 
 // AuthGetConsent
@@ -582,10 +594,15 @@ func (h Handler) AuthPostConsent(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("consentAcceptResp: ", consentAcceptResp)
-
+	//for ui flow redirect
 	c.Redirect(http.StatusFound, *consentAcceptResp.GetPayload().RedirectTo)
 	return
+
+	//for api test purpose
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"message": "successfully consent",
+	// 	"consentAcceptResp": consentAcceptResp,
+	// })
 }
 
 
@@ -608,6 +625,25 @@ var OAuthConf = &oauth2.Config{
 // HydraTokenEndpoint
 func (h Handler) HydraTokenEndpoint(c *gin.Context) {
 	code := c.PostForm("code")
+	refreshToken := c.PostForm("refresh_token")
+	// if refresh token is available then generate new token
+	if refreshToken != "" {
+		tokenRespWithRefresh, err := OAuthConf.TokenSource(context.Background(), &oauth2.Token{RefreshToken: refreshToken}).Token()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "error in sending request to token endpoint" + err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "successfully token generated with refresh token",
+			"tokenResp": tokenRespWithRefresh,
+		})
+		return
+	}
+
+
 	if code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "authorization code not found",
@@ -615,30 +651,87 @@ func (h Handler) HydraTokenEndpoint(c *gin.Context) {
 		return
 	}
 
+	// if refresh token is not available then generate new token
 	tokenResp, err := OAuthConf.Exchange(context.Background(), code)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "error in sending request to token endpoint",
+			"message": "error in sending request to token endpoint" + err.Error(),
 		})
 		return
 	}
 
 	fmt.Println("tokenResp from token endpoint: ", tokenResp)
 
+	//set in cookie
+	c.SetCookie("access_token", tokenResp.AccessToken, 3600, "/", "localhost", false, true)
+	c.SetCookie("refresh_token", tokenResp.RefreshToken, 3600, "/", "localhost", false, true)
 
-	// c.JSON(http.StatusOK, gin.H{
-	// 	"message": "successfully login",
-	// 	"token":   tokenResp,
-	// })
+	// for ui flow redirect
+	// redirectURL := "http://localhost:3000/callbacks" + "?access_token=" + tokenResp.AccessToken + "&refresh_token=" + tokenResp.RefreshToken + "&token_type=" + tokenResp.TokenType + "&expires_in=" + tokenResp.Expiry.String()
+	// c.Redirect(http.StatusFound, redirectURL)
 
-	redirectURL := "http://localhost:3000/callbacks" + "?access_token=" + tokenResp.AccessToken + "&refresh_token=" + tokenResp.RefreshToken + "&token_type=" + tokenResp.TokenType + "&expires_in=" + strconv.Itoa(int(tokenResp.Expiry.Sub(time.Now()).Seconds()))
-	c.Redirect(http.StatusFound, redirectURL)
+	//for api test purpose
+	c.JSON(http.StatusOK, gin.H{
+		"message": "successfully new token generated",
+		"tokenResp": tokenResp,
+	})
 	
 }
 // ----------------------- token endpoint ----------------------------
 
 
+//HydraIntroSpectEndpoint
+func (h Handler) HydraIntroSpectEndpoint(c *gin.Context) {
+	// token := c.PostForm("token")
+	// token := c.Query("token")
+	token := c.Request.Header.Get("token")
+	fmt.Println("access-token: ", token)
+	
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "token not found",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	introspectParams := admin.NewIntrospectOAuth2TokenParams()
+	introspectParams.WithContext(ctx)
+	introspectParams.SetToken(token)
+
+	introspectResp, err := h.HydraAdmin.IntrospectOAuth2Token(introspectParams)
+	
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "error in introspect token",
+		})
+		return
+	}
+
+	// check valid token and authorize user
+	if *introspectResp.Payload.Active {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "token is valid",
+			"hydraintrospect": introspectResp.Payload,
+		})
+		return
+	}
+
+	c.JSON(http.StatusBadRequest, gin.H{
+		"message": "token is not valid, please login again",
+	})
+}
+
+
+
+//Test
+func Test(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"message": "test route respone from controller to check the route is working or not",
+	})
+}
 
 
 // Login

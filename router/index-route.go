@@ -21,18 +21,6 @@ var (
 	)
 )
 
-// var userInfo = []repouser.UserInfo{
-// 	{
-// 		ID:       1,
-// 		Email:    "user@example.com",
-// 		Password: "password",
-// 	},
-// 	{
-// 		ID:       2,
-// 		Email:    "user2@example.com",
-// 		Password: "password",
-// 	},
-// }
 
 func IndexRoute(route *gin.Engine) {
 
@@ -77,7 +65,10 @@ func IndexRoute(route *gin.Engine) {
 	route.POST("/consent", Hydracontroller.AuthPostConsent)
 	// call hydra token endpoint
 	route.POST("/oauth2/token", Hydracontroller.HydraTokenEndpoint)
+	route.POST("/introspect", Hydracontroller.HydraIntroSpectEndpoint)
 
 	// --------- hydra ----------------
+
+	route.GET("/test", controller.Test)
 
 }

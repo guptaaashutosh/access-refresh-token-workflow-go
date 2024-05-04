@@ -1,0 +1,29 @@
+[
+    {
+      "id": "api:protected",
+      "upstream": {
+        "preserve_host": true,
+        "url": "http://127.0.0.1:8000"
+      },
+      "match": {
+        "url": "http://127.0.0.1:4455/<.*>",
+        "methods": [
+          "GET",
+          "POST"
+        ]
+      },
+      "authenticators": [
+        {
+          "handler": "oauth2_introspection"
+        }
+      ],
+      "mutators": [
+        {
+          "handler": "noop"
+        }
+      ],
+      "authorizer": {
+        "handler": "allow"
+      }
+    }
+  ]
