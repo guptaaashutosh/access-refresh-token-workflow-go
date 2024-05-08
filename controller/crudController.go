@@ -447,7 +447,7 @@ func (h Handler) AuthPostLogin(c *gin.Context) {
 
 	fmt.Println("respLoginGet post login: ", respLoginGet)
 
-	subject := "democlient"
+	subject := "static-userid-set-from-login-in-subject"
 
 	loginAcceptParams := admin.NewAcceptLoginRequestParams()
 	loginAcceptParams.WithContext(ctx)
@@ -554,8 +554,6 @@ func (h Handler) AuthPostConsent(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("consent_challenge post consent: ", consent_challenge)
-
 	ctx := c.Request.Context()
 
 	// Using Hydra Admin to get the consent challenge info
@@ -578,6 +576,11 @@ func (h Handler) AuthPostConsent(c *gin.Context) {
 	consentAcceptBody := &models.AcceptConsentRequest{
 		GrantAccessTokenAudience: consentGetResp.GetPayload().RequestedAccessTokenAudience,
 		GrantScope:               consentGetResp.GetPayload().RequestedScope,
+		Session: &models.ConsentRequestSession{
+			AccessToken: map[string]string{
+				"permission": "static-permission-set-from-consent",
+			},
+		},
 	}
 
 	// Using Hydra Admin to accept consent request
@@ -605,7 +608,6 @@ func (h Handler) AuthPostConsent(c *gin.Context) {
 	// })
 }
 
-
 // ----------------- token endpoint ----------------------------
 // Endpoint is OAuth 2.0 endpoint.
 var Endpoint = oauth2.Endpoint{
@@ -616,10 +618,10 @@ var Endpoint = oauth2.Endpoint{
 // Scopes: OAuth 2.0 scopes provide a way to limit the amount of access that is granted to an access token.
 var OAuthConf = &oauth2.Config{
 	RedirectURL:  "http://localhost:3000/callbacks",
-	ClientID:     "democlient", 
-	ClientSecret: "demosecret", 
-	Scopes:   []string{"users.write", "users.read", "users.edit", "users.delete", "offline"},
-	Endpoint: Endpoint,
+	ClientID:     "democlient",
+	ClientSecret: "demosecret",
+	Scopes:       []string{"users.write", "users.read", "users.edit", "users.delete", "offline"},
+	Endpoint:     Endpoint,
 }
 
 // HydraTokenEndpoint
@@ -637,12 +639,11 @@ func (h Handler) HydraTokenEndpoint(c *gin.Context) {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"message": "successfully token generated with refresh token",
+			"message":   "successfully token generated with refresh token",
 			"tokenResp": tokenRespWithRefresh,
 		})
 		return
 	}
-
 
 	if code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -673,21 +674,21 @@ func (h Handler) HydraTokenEndpoint(c *gin.Context) {
 
 	//for api test purpose
 	c.JSON(http.StatusOK, gin.H{
-		"message": "successfully new token generated",
+		"message":   "successfully new token generated",
 		"tokenResp": tokenResp,
 	})
-	
+
 }
+
 // ----------------------- token endpoint ----------------------------
 
-
-//HydraIntroSpectEndpoint
+// HydraIntroSpectEndpoint
 func (h Handler) HydraIntroSpectEndpoint(c *gin.Context) {
 	// token := c.PostForm("token")
 	// token := c.Query("token")
 	token := c.Request.Header.Get("token")
 	fmt.Println("access-token: ", token)
-	
+
 	if token == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "token not found",
@@ -702,7 +703,7 @@ func (h Handler) HydraIntroSpectEndpoint(c *gin.Context) {
 	introspectParams.SetToken(token)
 
 	introspectResp, err := h.HydraAdmin.IntrospectOAuth2Token(introspectParams)
-	
+
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "error in introspect token",
@@ -713,7 +714,7 @@ func (h Handler) HydraIntroSpectEndpoint(c *gin.Context) {
 	// check valid token and authorize user
 	if *introspectResp.Payload.Active {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "token is valid",
+			"message":         "token is valid",
 			"hydraintrospect": introspectResp.Payload,
 		})
 		return
@@ -724,15 +725,16 @@ func (h Handler) HydraIntroSpectEndpoint(c *gin.Context) {
 	})
 }
 
-
-
-//Test
+// Test
 func Test(c *gin.Context) {
+	auth_user := c.Request.Header.Get("auth-user")
+	auth_permission := c.Request.Header.Get("auth-permission")
 	c.JSON(http.StatusOK, gin.H{
-		"message": "test route respone from controller to check the route is working or not",
+		"message":                           "test route respone from controller to check the route is working or not",
+		"auth-user-set-by-oathkeeper":       auth_user,
+		"auth-permission-set-by-oathkeeper": auth_permission,
 	})
 }
-
 
 // Login
 func Login(c *gin.Context) {

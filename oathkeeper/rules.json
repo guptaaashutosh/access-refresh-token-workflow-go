@@ -19,7 +19,7 @@
       ],
       "mutators": [
         {
-          "handler": "noop"
+          "handler": "header"
         }
       ],
       "authorizer": {

@@ -82,8 +82,14 @@
       }
     },
     "mutators": {
-      "noop": {
-        "enabled": true
+        "header": {
+          "enabled": true,
+          "config": {
+            "headers": {
+              "auth-user": "{{ print .Subject }}",
+              "auth-permission": "{{ print .Extra.permission }}"
+            }
+          }
+        }
       }
-    }
   }
